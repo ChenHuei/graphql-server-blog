@@ -160,7 +160,6 @@ const resolvers = {
         createdAt: new Date().toString(),
         ...args.input
       }
-      console.log('post', post);
       posts.push(post)
       return post
     },
@@ -198,7 +197,6 @@ const resolvers = {
         ...other
       }
       users.push(user)
-      console.log(users);
       return user
     },
     login: async (root, args) => {
