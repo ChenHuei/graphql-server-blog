@@ -27,6 +27,24 @@ const typeDefs = gql`
     posts: [Post]
     post(id: Int!): Post
   }
+
+  input UpdateSelfInfo {
+    name: String
+    age: Int
+    email: String
+  }
+
+  input AddPost {
+    title: String!
+    description: String
+  }
+
+  type Mutation {
+    updateSelfInfo(input: UpdateSelfInfo): User
+    addFriend(id: Int!): User
+    addPost(input: AddPost): Post
+    likePost(id: Int!): Post
+  }
 `;
 
 const meId = 1;
@@ -79,9 +97,9 @@ const posts = [
 // Resolvers
 const resolvers = {
   Query: {
-    self: () => users.find(user => user.id === meId),
+    self: () => getUser(),
     users: () => users,
-    user: (root, args) => users.find(user => user.id === args.id),
+    user: (root, args) => getUser(args.id),
     posts: () => posts,
     post: (root, args) => posts.find(post => post.id === args.id)
   },
@@ -90,8 +108,54 @@ const resolvers = {
     friends: (parent) => users.filter(user => parent.friendIds.includes(user.id))
   },
   Post: {
-    author: (parent) => users.find(user => user.id === parent.authorId),
-    likeUsers: (parent) => parent.likeUsers.map(id => users.find(user => user.id === id))
+    author: (parent) => getUser(parent.authorId),
+    likeUsers: (parent) => parent.likeUsers.map(id => getUser(id))
+  },
+  Mutation: {
+    updateSelfInfo: (root, args) => {
+      const self = getUser()
+      const newSelf = {
+        ...self,
+        ...args.input
+      }
+      users.splice(users.findIndex(user => user.id === meId), 1, newSelf)
+
+      return newSelf
+    },
+    addFriend: (root, args) => {
+      const self = getUser()
+      const { friendIds } = self
+      const { id } = args
+
+      if (!friendIds.includes(id)) {
+        friendIds.push(id)
+      }
+
+      return self
+    },
+    addPost: (root, args) => {
+      const post = {
+        id: posts.length + 1,
+        authorId: meId,
+        likeUsers: [],
+        createdAt: new Date().toString(),
+        ...args.input
+      }
+      posts.push(post)
+      return post
+    },
+    likePost: (root, args) => {
+      const post = posts.find(post => post.id === args.id)
+      const { likeUsers } = post
+
+      if (likeUsers.includes(meId)) {
+        likeUsers.splice(likeUsers.indexOf(meId), 1)
+      } else {
+        likeUsers.push(meId)
+      }
+      
+      return post
+    }
   }
 };
 
@@ -102,3 +166,7 @@ const server = new ApolloServer({ typeDefs,resolvers});
 server.listen().then(({ url }) => {
   console.log(`🚀 Server ready at ${url}`);
 });
+
+
+// utils
+const getUser = (id = meId) => users.find(user => user.id === id)
