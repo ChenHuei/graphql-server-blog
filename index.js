@@ -52,6 +52,7 @@ const typeDefs = gql`
     name: String
     email: String!
     password: String!
+    age: Int
   }
 
   type Mutation {
@@ -59,6 +60,7 @@ const typeDefs = gql`
     addFriend(id: Int!): User
     addPost(input: AddPost): Post
     likePost(id: Int!): Post
+    deletePost(id: Int!): Post
     signUp(input: SignUp): User
     login(email: String!, password: String!): Token
   }
@@ -114,7 +116,7 @@ const posts = [
 // Resolvers
 const resolvers = {
   Query: {
-    self: () => getUser(),
+    self: (root, args, { self }) => getUser(self.id),
     users: () => users,
     user: (root, args) => getUser(args.id),
     posts: () => posts,
@@ -129,48 +131,58 @@ const resolvers = {
     likeUsers: (parent) => parent.likeUsers.map(id => getUser(id))
   },
   Mutation: {
-    updateSelfInfo: (root, args) => {
-      const self = getUser()
+    updateSelfInfo: (root, args, { self }) => {
+      const me = getUser(self.id)
       const newSelf = {
-        ...self,
+        ...me,
         ...args.input
       }
-      users.splice(users.findIndex(user => user.id === meId), 1, newSelf)
+      users.splice(users.findIndex(user => user.id === self.id), 1, newSelf)
 
       return newSelf
     },
-    addFriend: (root, args) => {
-      const self = getUser()
-      const { friendIds } = self
+    addFriend: (root, args, { self }) => {
+      const me = getUser(self.id)
+      const { friendIds } = me
       const { id } = args
 
       if (!friendIds.includes(id)) {
         friendIds.push(id)
       }
 
-      return self
+      return me
     },
-    addPost: (root, args) => {
+    addPost: (root, args, { self }) => {
       const post = {
         id: posts.length + 1,
-        authorId: meId,
+        authorId: self.id,
         likeUsers: [],
         createdAt: new Date().toString(),
         ...args.input
       }
+      console.log('post', post);
       posts.push(post)
       return post
     },
-    likePost: (root, args) => {
+    likePost: (root, args, { self }) => {
       const post = posts.find(post => post.id === args.id)
       const { likeUsers } = post
 
-      if (likeUsers.includes(meId)) {
-        likeUsers.splice(likeUsers.indexOf(meId), 1)
+      if (likeUsers.includes(self.id)) {
+        likeUsers.splice(likeUsers.indexOf(self.id), 1)
       } else {
-        likeUsers.push(meId)
+        likeUsers.push(self.id)
       }
       
+      return post
+    },
+    deletePost: (root, args, { self }) => {
+      const { id } = args
+      const post = posts.find(post => post.id === id)
+      if (post.authorId !== self.id) {
+        throw new Error('Only author can delete this post')
+      } 
+      posts.splice(posts.findIndex(post => post.id === id), 1)
       return post
     },
     signUp: async(root, args) => {
@@ -186,6 +198,7 @@ const resolvers = {
         ...other
       }
       users.push(user)
+      console.log(users);
       return user
     },
     login: async (root, args) => {
@@ -208,7 +221,18 @@ const resolvers = {
 };
 
 // 初始化 Web Server，需傳入 typeDefs (Schema) 與 resolvers (Resolver)
-const server = new ApolloServer({ typeDefs,resolvers});
+const server = new ApolloServer({ typeDefs,resolvers, context: async({ req }) => {
+  try {
+    const token = req.headers['x-token']
+    
+    return token ? { 
+      self: await jwt.verify(token, SECRET) 
+    } : {}
+  } catch(e) {
+    throw new Error('token expired, please sign in again.')
+  }
+  
+} });
 
 // 4. 啟動 Server
 server.listen().then(({ url }) => {
@@ -217,4 +241,4 @@ server.listen().then(({ url }) => {
 
 
 // utils
-const getUser = (id = meId) => users.find(user => user.id === id)
+const getUser = (id) => users.find(user => user.id === id)
