@@ -25,6 +25,10 @@ const typeDefs = gql`
     createdAt: String
   }
 
+  type Token {
+    token: String!
+  }
+
   type Query {
     self: User
     users: [User]
@@ -56,6 +60,7 @@ const typeDefs = gql`
     addPost(input: AddPost): Post
     likePost(id: Int!): Post
     signUp(input: SignUp): User
+    login(email: String!, password: String!): Token
   }
 `;
 
@@ -182,6 +187,22 @@ const resolvers = {
       }
       users.push(user)
       return user
+    },
+    login: async (root, args) => {
+      const { email, password } = args
+
+      const user = users.find(user => user.email === email)
+      if (!user) {
+        throw new Error("email doesn't exist")
+      }
+      if (!await bcrypt.compare(password, user.password)) {
+        throw new Error('wrong password')
+      }
+      return {
+        token: await jwt.sign(user, SECRET, {
+          expiresIn: '1d'
+        })
+      }
     }
   }
 };
