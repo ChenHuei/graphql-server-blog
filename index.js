@@ -1,4 +1,9 @@
 const { ApolloServer, gql } = require('apollo-server');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+const SALT_ROUNDS = 2;
+const SECRET = 'just_a_random_secret';
 
 // Schema
 const typeDefs = gql`
@@ -39,11 +44,18 @@ const typeDefs = gql`
     description: String
   }
 
+  input SignUp {
+    name: String
+    email: String!
+    password: String!
+  }
+
   type Mutation {
     updateSelfInfo(input: UpdateSelfInfo): User
     addFriend(id: Int!): User
     addPost(input: AddPost): Post
     likePost(id: Int!): Post
+    signUp(input: SignUp): User
   }
 `;
 
@@ -155,6 +167,21 @@ const resolvers = {
       }
       
       return post
+    },
+    signUp: async(root, args) => {
+      if (users.some(user => user.email === args.input.email)) {
+        throw new Error('Someone used this email')
+      }
+      const { password, ...other } = args.input
+      const user = {
+        id: users.length + 1,
+        friends: [],
+        post: [],
+        password: await bcrypt.hash(password, SALT_ROUNDS),
+        ...other
+      }
+      users.push(user)
+      return user
     }
   }
 };
