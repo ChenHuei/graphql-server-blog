@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const SALT_ROUNDS = 2;
-const SECRET = 'just_a_random_secret';
+const SECRET = process.env.SECRET;
 
 // Schema
 const typeDefs = gql`
