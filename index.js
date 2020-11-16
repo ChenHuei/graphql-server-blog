@@ -1,22 +1,7 @@
 const { ApolloServer, gql } = require('apollo-server');
 const jwt = require('jsonwebtoken');
 
-const {
-  getSelf,
-  getUsers,
-  getUser,
-  getPosts,
-  getPost,
-  filterUserPost,
-  filterUserFriends,
-  filterPostLikeUsers,
-  updateSelfInfo,
-  addFriend,
-  addPost,
-  likePost,
-  signUp,
-  login
-} = require('./models');
+const { userModel, postModel } = require('./models');
 
 // Schema
 const typeDefs = gql`
@@ -82,28 +67,28 @@ const typeDefs = gql`
 // Resolvers
 const resolvers = {
   Query: {
-    self: (root, args, { self }) => getSelf(self.id),
-    users: () => getUsers(),
-    user: (root, args) => getUser(args.id),
-    posts: () => getPosts(),
-    post: (root, args) => getPost(args.id)
+    self: (root, args, { self }) => userModel.getSelf(self.id),
+    users: () => userModel.getUsers(),
+    user: (root, args) => userModel.getUser(args.id),
+    posts: () => postModel.getPosts(),
+    post: (root, args) => postModel.getPost(args.id)
   },
   User: {
-    posts: (parent) => filterUserPost(parent.id),
-    friends: (parent) => filterUserFriends(parent.friendIds)
+    posts: (parent) => postModel.filterUserPost(parent.id),
+    friends: (parent) => userModel.filterUserFriends(parent.friendIds)
   },
   Post: {
-    author: (parent) => getUser(parent.authorId),
-    likeUsers: (parent) => filterPostLikeUsers(parent.likeUsers)
+    author: (parent) => userModel.getUser(parent.authorId),
+    likeUsers: (parent) => userModel.filterPostLikeUsers(parent.likeUsers)
   },
   Mutation: {
-    updateSelfInfo: (root, args, { self }) => updateSelfInfo(args.input, self),
-    addFriend: (root, args, { self }) => addFriend(args.id, self),
-    addPost: (root, args, { self }) => addPost(args.input, self),
-    likePost: (root, args, { self }) => likePost(args.id, self),
-    deletePost: (root, args, { self }) => deletePost(args.id, self),
-    signUp: async(root, args, { saltRounds }) => await signUp(args, saltRounds),
-    login: async (root, args, { secret }) => await login(args.email, args.password, secret)
+    updateSelfInfo: (root, args, { self }) => userModel.updateSelfInfo(args.input, self),
+    addFriend: (root, args, { self }) => userModel.addFriend(args.id, self),
+    addPost: (root, args, { self }) => postModel.addPost(args.input, self),
+    likePost: (root, args, { self }) => postModel.likePost(args.id, self),
+    deletePost: (root, args, { self }) => postModel.deletePost(args.id, self),
+    signUp: async(root, args, { saltRounds }) => await userModel.signUp(args, saltRounds),
+    login: async (root, args, { secret }) => await userModel.login(args.email, args.password, secret)
   }
 };
 
