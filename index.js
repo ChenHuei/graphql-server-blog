@@ -2,9 +2,6 @@ const { ApolloServer, gql } = require('apollo-server');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-const SALT_ROUNDS = 2;
-const SECRET = process.env.SECRET;
-
 // Schema
 const typeDefs = gql`
   type User {
@@ -184,7 +181,7 @@ const resolvers = {
       posts.splice(posts.findIndex(post => post.id === id), 1)
       return post
     },
-    signUp: async(root, args) => {
+    signUp: async(root, args, { saltRounds }) => {
       if (users.some(user => user.email === args.input.email)) {
         throw new Error('Someone used this email')
       }
@@ -193,13 +190,13 @@ const resolvers = {
         id: users.length + 1,
         friends: [],
         post: [],
-        password: await bcrypt.hash(password, SALT_ROUNDS),
+        password: await bcrypt.hash(password, saltRounds),
         ...other
       }
       users.push(user)
       return user
     },
-    login: async (root, args) => {
+    login: async (root, args, { secret }) => {
       const { email, password } = args
 
       const user = users.find(user => user.email === email)
@@ -210,7 +207,7 @@ const resolvers = {
         throw new Error('wrong password')
       }
       return {
-        token: await jwt.sign(user, SECRET, {
+        token: await jwt.sign(user, secret, {
           expiresIn: '1d'
         })
       }
@@ -224,7 +221,9 @@ const server = new ApolloServer({ typeDefs,resolvers, context: async({ req }) =>
     const token = req.headers['x-token']
     
     return token ? { 
-      self: await jwt.verify(token, SECRET) 
+      secret: process.env.SECRET, 
+      saltRounds: 2,
+      self: await jwt.verify(token, process.env.SECRET) 
     } : {}
   } catch(e) {
     throw new Error('token expired, please sign in again.')
