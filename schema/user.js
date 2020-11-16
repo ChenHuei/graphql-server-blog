@@ -1,5 +1,5 @@
 const { gql } = require('apollo-server');
-const { userModel, postModel } = require('./models');
+const { userModel, postModel } = require('../models');
 
 // Schema
 const typeDefs = gql`
@@ -62,7 +62,7 @@ const resolvers = {
   }
 };
 
-module.export = {
+module.exports = {
   typeDefs,
   resolvers
 }

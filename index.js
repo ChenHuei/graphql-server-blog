@@ -1,9 +1,9 @@
 const { ApolloServer } = require('apollo-server');
-const { typeDefs, resolvers } = requrie('./schema')
+const { typeDefs, resolvers } = require('./schema')
 const jwt = require('jsonwebtoken');
 
 // 初始化 Web Server，需傳入 typeDefs (Schema) 與 resolvers (Resolver)
-const server = new ApolloServer({ typeDefs,resolvers, context: async({ req }) => {
+const server = new ApolloServer({ typeDefs, resolvers, context: async({ req }) => {
   try {
     const token = req.headers['x-token']
     const context = {

@@ -31,7 +31,7 @@ const users = [
 // utils
 const getUser = (id) => users.find(user => user.id === id)
 
-module.export = {
+module.exports = {
   getSelf: (id) => getUser(id),
   getUsers: () => users,
   getUser: (id) => getUser(id),
