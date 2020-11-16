@@ -1,6 +1,22 @@
 const { ApolloServer, gql } = require('apollo-server');
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+
+const {
+  getSelf,
+  getUsers,
+  getUser,
+  getPosts,
+  getPost,
+  filterUserPost,
+  filterUserFriends,
+  filterPostLikeUsers,
+  updateSelfInfo,
+  addFriend,
+  addPost,
+  likePost,
+  signUp,
+  login
+} = require('./models');
 
 // Schema
 const typeDefs = gql`
@@ -63,155 +79,31 @@ const typeDefs = gql`
   }
 `;
 
-const meId = 1;
-const users = [
-  {
-    id: 1,
-    email: 'leo.chen@test.com',
-    password: 'leo',
-    name: 'leo',
-    age: 20,
-    friendIds: [2, 3]
-  },
-  {
-    id: 2,
-    email: 'woody@test.com',
-    password: 'woody',
-    name: 'Woody',
-    age: 30,
-    friendIds: [1]
-  },
-  {
-    id: 3,
-    email: 'ding@test.com',
-    password: 'ding',
-    name: 'Ding',
-    age: 40,
-    friendIds: [1]
-  }
-];
-
-const posts = [
-  {
-    id: 1,
-    authorId: 1,
-    title: 'Hello World',
-    description: 'This is my first post',
-    likeUsers: [1, 2],
-    createdAt: '2018-10-22T01:40:14.941Z'
-  },
-  {
-    id: 2,
-    authorId: 2,
-    title: 'Nice Day',
-    description: 'Hello My Friend!',
-    likeUsers: [1],
-    createdAt: '2018-10-24T01:40:14.941Z'
-  }
-];
-
 // Resolvers
 const resolvers = {
   Query: {
-    self: (root, args, { self }) => getUser(self.id),
-    users: () => users,
+    self: (root, args, { self }) => getSelf(self.id),
+    users: () => getUsers(),
     user: (root, args) => getUser(args.id),
-    posts: () => posts,
-    post: (root, args) => posts.find(post => post.id === args.id)
+    posts: () => getPosts(),
+    post: (root, args) => getPost(args.id)
   },
   User: {
-    posts: (parent) => posts.filter(post => post.authorId === parent.id),
-    friends: (parent) => users.filter(user => parent.friendIds.includes(user.id))
+    posts: (parent) => filterUserPost(parent.id),
+    friends: (parent) => filterUserFriends(parent.friendIds)
   },
   Post: {
     author: (parent) => getUser(parent.authorId),
-    likeUsers: (parent) => parent.likeUsers.map(id => getUser(id))
+    likeUsers: (parent) => filterPostLikeUsers(parent.likeUsers)
   },
   Mutation: {
-    updateSelfInfo: (root, args, { self }) => {
-      const me = getUser(self.id)
-      const newSelf = {
-        ...me,
-        ...args.input
-      }
-      users.splice(users.findIndex(user => user.id === self.id), 1, newSelf)
-
-      return newSelf
-    },
-    addFriend: (root, args, { self }) => {
-      const me = getUser(self.id)
-      const { friendIds } = me
-      const { id } = args
-
-      if (!friendIds.includes(id)) {
-        friendIds.push(id)
-      }
-
-      return me
-    },
-    addPost: (root, args, { self }) => {
-      const post = {
-        id: posts.length + 1,
-        authorId: self.id,
-        likeUsers: [],
-        createdAt: new Date().toString(),
-        ...args.input
-      }
-      posts.push(post)
-      return post
-    },
-    likePost: (root, args, { self }) => {
-      const post = posts.find(post => post.id === args.id)
-      const { likeUsers } = post
-
-      if (likeUsers.includes(self.id)) {
-        likeUsers.splice(likeUsers.indexOf(self.id), 1)
-      } else {
-        likeUsers.push(self.id)
-      }
-      
-      return post
-    },
-    deletePost: (root, args, { self }) => {
-      const { id } = args
-      const post = posts.find(post => post.id === id)
-      if (post.authorId !== self.id) {
-        throw new Error('Only author can delete this post')
-      } 
-      posts.splice(posts.findIndex(post => post.id === id), 1)
-      return post
-    },
-    signUp: async(root, args, { saltRounds }) => {
-      if (users.some(user => user.email === args.input.email)) {
-        throw new Error('Someone used this email')
-      }
-      const { password, ...other } = args.input
-      const user = {
-        id: users.length + 1,
-        friends: [],
-        post: [],
-        password: await bcrypt.hash(password, saltRounds),
-        ...other
-      }
-      users.push(user)
-      return user
-    },
-    login: async (root, args, { secret }) => {
-      const { email, password } = args
-
-      const user = users.find(user => user.email === email)
-      if (!user) {
-        throw new Error("email doesn't exist")
-      }
-      if (!await bcrypt.compare(password, user.password)) {
-        throw new Error('wrong password')
-      }
-      return {
-        token: await jwt.sign(user, secret, {
-          expiresIn: '1d'
-        })
-      }
-    }
+    updateSelfInfo: (root, args, { self }) => updateSelfInfo(args.input, self),
+    addFriend: (root, args, { self }) => addFriend(args.id, self),
+    addPost: (root, args, { self }) => addPost(args.input, self),
+    likePost: (root, args, { self }) => likePost(args.id, self),
+    deletePost: (root, args, { self }) => deletePost(args.id, self),
+    signUp: async(root, args, { saltRounds }) => await signUp(args, saltRounds),
+    login: async (root, args, { secret }) => await login(args.email, args.password, secret)
   }
 };
 
@@ -219,12 +111,15 @@ const resolvers = {
 const server = new ApolloServer({ typeDefs,resolvers, context: async({ req }) => {
   try {
     const token = req.headers['x-token']
-    
-    return token ? { 
+    const context = {
       secret: process.env.SECRET, 
       saltRounds: 2,
+    }
+    
+    return token ? { 
+      ...context,
       self: await jwt.verify(token, process.env.SECRET) 
-    } : {}
+    } : context
   } catch(e) {
     throw new Error('token expired, please sign in again.')
   }
@@ -235,7 +130,3 @@ const server = new ApolloServer({ typeDefs,resolvers, context: async({ req }) =>
 server.listen().then(({ url }) => {
   console.log(`🚀 Server ready at ${url}`);
 });
-
-
-// utils
-const getUser = (id) => users.find(user => user.id === id)
